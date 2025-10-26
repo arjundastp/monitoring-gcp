@@ -2,8 +2,8 @@ name: Daily Script Runner
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # Runs every day at 3 AM UTC
-  workflow_dispatch:       # Allows manual run
+    - cron: '0 3 * * *'    # Runs every day at 3 AM UTC
+  workflow_dispatch:        # Allows manual run
 
 jobs:
   run-script:
@@ -25,3 +25,17 @@ jobs:
 
       - name: Run script
         run: python test2.py
+        # ⬇️ ADD THIS ENV BLOCK ⬇️
+        env:
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          # Including other variables for completeness, if used by your script:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
