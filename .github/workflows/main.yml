@@ -1,10 +1,8 @@
 name: CloudSQL Monitoring Report
 
 on:
-  # Adjust the schedule as needed (e.g., daily at 08:00 UTC)
   schedule:
     - cron: '0 8 * * *'
-  # Allows manual runs from the GitHub Actions tab
   workflow_dispatch:
 
 jobs:
@@ -26,8 +24,7 @@ jobs:
       GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       
-      # CRUCIAL FIX: Use double quotes to safely pass the multiline private key 
-      # from the GitHub secret into a single environment variable.
+      # CRUCIAL: Use double quotes to safely pass the multiline private key 
       GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
 
 
@@ -35,17 +32,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.10 🐍
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x' 
+          # Using a specific stable version avoids common dependency conflicts
+          python-version: '3.10' 
 
-      - name: Install dependencies
+      - name: Install dependencies from requirements.txt ✅
         run: |
-          # The Python script uses these libraries
+          # Upgrade pip first
           python -m pip install --upgrade pip
-          pip install requests numpy smtplib google-auth google-oauthlib 
+          # Install all required packages. smtplib is correctly omitted as it's built-in.
+          pip install -r requirements.txt 
 
       - name: Run CloudSQL Monitor Script
-        # SCRIPT NAME FIXED HERE 👇
         run: python test2.py
