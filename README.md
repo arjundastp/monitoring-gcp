@@ -13,11 +13,6 @@ pip install -r requirements.txt
 3. Name: "cloudsql-monitor"
 4. Grant Role: "Monitoring Viewer"
 
-### Step 2: Download Key File
-1. Click on your service account
-2. Go to "Keys" tab
-3. Click "Add Key" → "Create New Key" → JSON
-4. Download and save as `service-account-key.json` in this directory
 
 ## 3. Setup Email Configuration
 
@@ -41,13 +36,6 @@ pip install -r requirements.txt
    ```
 
 2. Edit `.env` file with your actual values:
-   ```env
-   PROJECT_ID=fantacode-services
-   EMAIL_FROM=your-email@gmail.com
-   EMAIL_PASSWORD=your-16-digit-app-password
-   EMAIL_TO=aejundastp3@gmail.com
-   SERVICE_ACCOUNT_FILE=service-account-key.json
-   ```
 
 ### Step 2: Secure Your Files
 - Never commit `.env` or `service-account-key.json` to version control
