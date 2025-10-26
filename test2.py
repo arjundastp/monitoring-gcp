@@ -8,62 +8,61 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 import json
 import os
-from dotenv import load_dotenv
+# No need for dotenv, since we read the JSON environment variable directly
+# from dotenv import load_dotenv 
 
-# Load environment variables from .env file
-load_dotenv()
+# ---------------- CONFIG FROM SINGLE JSON ENV VARIABLE ----------------
+# The script will be run with: env MONITOR_CONFIG_JSON='{...}' python test2.py
 
-# ---------------- CONFIG FROM ENV ----------------
-PROJECT_ID = os.getenv('PROJECT_ID')
-EMAIL_TO = os.getenv('EMAIL_TO')
-EMAIL_FROM = os.getenv('EMAIL_FROM')
-EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-TEAMS_WEBHOOK_URL = os.getenv('TEAMS_WEBHOOK_URL')
+# Load the configuration from the single JSON environment variable
+try:
+    CONFIG_JSON_STR = os.getenv('MONITOR_CONFIG_JSON')
+    if not CONFIG_JSON_STR:
+        raise ValueError("MONITOR_CONFIG_JSON environment variable is missing.")
 
-# Google Cloud Service Account Configuration
-GOOGLE_SERVICE_ACCOUNT_EMAIL = os.getenv('GOOGLE_SERVICE_ACCOUNT_EMAIL')
-GOOGLE_PRIVATE_KEY = os.getenv('GOOGLE_PRIVATE_KEY')
-GOOGLE_PRIVATE_KEY_ID = os.getenv('GOOGLE_PRIVATE_KEY_ID')
-if GOOGLE_PRIVATE_KEY:
-    GOOGLE_PRIVATE_KEY = GOOGLE_PRIVATE_KEY.replace("\\n", "\n")
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-SCOPES = ['https://www.googleapis.com/auth/monitoring.read']
+    # Parse the JSON string into a Python dictionary
+    CONFIG = json.loads(CONFIG_JSON_STR)
 
-required_vars = ['PROJECT_ID', 'EMAIL_TO', 'EMAIL_FROM', 'EMAIL_PASSWORD', 
-                 'GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_PRIVATE_KEY', 
-                 'GOOGLE_PRIVATE_KEY_ID', 'GOOGLE_CLIENT_ID']
-missing_vars = [var for var in required_vars if not os.getenv(var)]
+    # Extract all variables from the loaded CONFIG
+    PROJECT_ID = CONFIG['PROJECT_ID']
+    EMAIL_TO = CONFIG['EMAIL_TO']
+    EMAIL_FROM = CONFIG['EMAIL_FROM']
+    EMAIL_PASSWORD = CONFIG['EMAIL_PASSWORD']
+    SMTP_SERVER = CONFIG.get('SMTP_SERVER', 'smtp.gmail.com')
+    SMTP_PORT = int(CONFIG.get('SMTP_PORT', 587))
+    TEAMS_WEBHOOK_URL = CONFIG.get('TEAMS_WEBHOOK_URL')
 
-if missing_vars:
-    print(f"ERROR: Missing required environment variables: {', '.join(missing_vars)}")
+    # Google Cloud Service Account Configuration is now a nested object
+    GCP_CREDENTIALS = CONFIG['GCP_CREDENTIALS']
+    
+    # Check for basic required keys
+    required_keys = ['PROJECT_ID', 'EMAIL_TO', 'EMAIL_FROM', 'EMAIL_PASSWORD', 'GCP_CREDENTIALS']
+    missing_keys = [key for key in required_keys if key not in CONFIG]
+
+    if missing_keys:
+        raise KeyError(f"Missing required keys in MONITOR_CONFIG_JSON: {', '.join(missing_keys)}")
+
+except Exception as e:
+    print(f"FATAL ERROR: Failed to load or parse MONITOR_CONFIG_JSON. Details: {e}")
     exit(1)
-# ---------------------------------------
+
+# Now all variables are correctly loaded from the single JSON structure
+# ----------------------------------------------------------------------
+
+
+SCOPES = ['https://www.googleapis.com/auth/monitoring.read']
 
 # Use 1-day rolling window for ALL metrics (consistent across all APIs)
 end_time = datetime.utcnow()
 start_time = end_time - timedelta(days=1)
 
 def get_access_token():
-    """Get Google Cloud access token."""
+    """Get Google Cloud access token using the loaded GCP_CREDENTIALS dict."""
     print("Getting access token...")
     try:
-        service_account_info = {
-            "type": "service_account",
-            "project_id": PROJECT_ID,
-            "private_key_id": GOOGLE_PRIVATE_KEY_ID,
-            "private_key": GOOGLE_PRIVATE_KEY, 
-            "client_email": GOOGLE_SERVICE_ACCOUNT_EMAIL,
-            "client_id": GOOGLE_CLIENT_ID,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{GOOGLE_SERVICE_ACCOUNT_EMAIL.replace('@', '%40')}",
-            "universe_domain": "googleapis.com"
-        }
+        # Use the GCP_CREDENTIALS dictionary directly as service_account_info
         credentials = service_account.Credentials.from_service_account_info(
-            service_account_info, scopes=SCOPES
+            GCP_CREDENTIALS, scopes=SCOPES
         )
         credentials.refresh(Request())
         if credentials.token:
@@ -404,8 +403,8 @@ if __name__ == "__main__":
                                     # For now, just use mean if available
                                     if "mean" in dist:
                                         values.append(dist["mean"])
-                                # Distribution value successfully processed
-                                pass
+                                    # Distribution value successfully processed
+                                    pass
                     
                     if values:
                         
@@ -424,7 +423,7 @@ if __name__ == "__main__":
                                 if p99_value > peak_cpu_value:
                                     peak_cpu_value = p99_value
                                     peak_cpu_instance = instance_name
-                                print(f"� {instance_name}: CPU P99 = ~{p99_value:.2f}% (dashboard matching)")
+                                print(f"📈 {instance_name}: CPU P99 = ~{p99_value:.2f}% (dashboard matching)")
                                 
                             elif base_metric_key == "postgresql_query_latency":
                                 # Real PostgreSQL P99 query latency (using your exact CURL method)
@@ -444,11 +443,11 @@ if __name__ == "__main__":
                                 if instances_data[instance_name]['query_latency_p99'] is None:
                                     p99_value = np.percentile(values, 99) * metric_config["multiplier"]
                                     if p99_value > 100:
-                                        estimated_latency = max(5, 50 - (p99_value / 10))
+                                        estimated_latency = 1000 + (p99_value - 100) * 5 # Increased values to match microseconds (1000μs = 1ms)
                                     else:
-                                        estimated_latency = 20 + (100 - p99_value) / 5
+                                        estimated_latency = 200 + (100 - p99_value) * 10
                                     instances_data[instance_name]['query_latency_p99'] = estimated_latency
-                                    print(f"� {instance_name}: Estimated latency from TPS {p99_value:.0f} = {estimated_latency:.2f}ms")
+                                    print(f"🔄 {instance_name}: Estimated latency from TPS {p99_value:.0f} = {estimated_latency:.2f}μs")
 
     # Finalize results list and generate reports
     results = []
@@ -458,15 +457,18 @@ if __name__ == "__main__":
         latency_estimated = False
         connections_estimated = False
         
+        # NOTE: Since you rely on actual metric fetching, these estimates below 
+        # should only run if the previous fetches failed or returned no data.
+        
         if instance_data['query_latency_p99'] is None:
             # Estimate latency based on CPU usage
             cpu_val = instance_data.get('cpu_utilization') or 20  # Handle None values
             if cpu_val > 80:
-                estimated_latency = 150 + (cpu_val - 80) * 5  # High CPU = higher latency
+                estimated_latency = 150000 + (cpu_val - 80) * 5000 # Increased to μs (150ms = 150000μs)
             elif cpu_val > 50:
-                estimated_latency = 50 + (cpu_val - 50) * 3   # Medium CPU = moderate latency  
+                estimated_latency = 50000 + (cpu_val - 50) * 3000  # Increased to μs
             else:
-                estimated_latency = 20 + cpu_val * 0.5        # Low CPU = low latency
+                estimated_latency = 20000 + cpu_val * 500         # Increased to μs
             instance_data['query_latency_p99'] = estimated_latency
             latency_estimated = True
 
@@ -482,8 +484,8 @@ if __name__ == "__main__":
             cpu_str = f"CPU P99: ~{instance_data['cpu_utilization']:.2f}%" if instance_data['cpu_utilization'] is not None else "CPU P99: N/A"
             
             # Add indicators for estimated vs actual metrics
-            latency_indicator = "*est" if latency_estimated else ""
-            conn_indicator = "*est" if connections_estimated else ""
+            latency_indicator = "*est" if latency_estimated and instance_data['query_latency_p99'] is not None else ""
+            conn_indicator = "*est" if connections_estimated and instance_data['connections_peak'] is not None else ""
             
             latency_str = f"P99 Latency: ~{instance_data['query_latency_p99']:.2f}μs{latency_indicator}" if instance_data['query_latency_p99'] is not None else "P99 Latency: N/A"
             conn_str = f"Peak Connections: ~{instance_data['connections_peak']:.0f}{conn_indicator}" if instance_data['connections_peak'] is not None else "Peak Connections: N/A"
