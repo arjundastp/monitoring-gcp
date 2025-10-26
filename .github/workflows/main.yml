@@ -25,17 +25,22 @@ jobs:
 
       - name: Run script
         run: python test2.py
-        # ⬇️ ADD THIS ENV BLOCK ⬇️
         env:
+          # --- Required Variables for your script (must be in GitHub Secrets) ---
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          
+          # 💡 CRITICAL: Quoting GOOGLE_PRIVATE_KEY for safe multi-line handling
+          GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
+          
           GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          # Including other variables for completeness, if used by your script:
+
+          # --- Other Config Variables (with SMTP_PORT fix) ---
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          # 💡 FIX: Use default '587' if the secret is empty/missing to avoid ValueError
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }} 
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
