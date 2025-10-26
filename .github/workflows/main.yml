@@ -23,15 +23,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt 
 
-      # ➡️ NEW STEP: Write the JSON secret directly to a file
+      # 1. Correctly write the multi-line JSON secret to a temporary file
       - name: Write JSON Config to File
-        # We use 'echo' with the raw secret value and redirect it to a file.
-        # This is safe because GitHub Secrets are only visible to the action runner.
         run: echo '${{ secrets.MONITOR_CONFIG_JSON }}' > config.json
-        shell: bash # Ensure correct shell for redirection
+        shell: bash
 
       - name: Run CloudSQL Monitor Script 🚀
-        # ➡️ ONLY pass the filename (and project ID for convenience) as environment variables
+        # 2. Pass the path to the file to the Python script
         env:
           CONFIG_FILE_PATH: config.json
           
