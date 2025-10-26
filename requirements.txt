@@ -1,0 +1,7 @@
+requests
+numpy
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-cloud-monitoring
+python-dotenv
