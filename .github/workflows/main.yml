@@ -3,11 +3,12 @@ name: Daily Script Runner
 on:
   schedule:
     - cron: '0 3 * * *'   # Runs every day at 3 AM UTC
-  workflow_dispatch:      # Optional: allows manual run
+  workflow_dispatch:       # Allows manual run
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    environment: envdev2   # <--- This tells GitHub to use the environment and its secrets
 
     steps:
       - name: Checkout repo
@@ -16,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'  # or your version
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -24,15 +25,4 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run script
-        env:
-          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-        run: |
-          python test2.py
+        run: python test2.py
