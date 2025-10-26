@@ -9,24 +9,11 @@ jobs:
   run_monitor:
     runs-on: ubuntu-latest
     
-    # Define the environment variables, ensuring correct handling for multi-line secrets
+    # Keep JOB-level ENVs for easy reference (and other steps)
     env:
-      PROJECT_ID: ${{ secrets.PROJECT_ID }}
-      EMAIL_TO: ${{ secrets.EMAIL_TO }}
-      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }} # Corrected port handling
       TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-
-      # Google Service Account Configuration
-      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-      GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
-      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-      
-      # CRUCIAL: Use double quotes to safely pass the multiline private key 
-      GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
-
 
     steps:
       - name: Checkout repository
@@ -35,15 +22,31 @@ jobs:
       - name: Set up Python 3.10 🐍
         uses: actions/setup-python@v5
         with:
-          # Using a specific stable version avoids common dependency conflicts
           python-version: '3.10' 
 
       - name: Install dependencies from requirements.txt ✅
         run: |
-          # Upgrade pip first
           python -m pip install --upgrade pip
-          # Install all required packages. smtplib is correctly omitted as it's built-in.
           pip install -r requirements.txt 
 
-      - name: Run CloudSQL Monitor Script
+      - name: Run CloudSQL Monitor Script 🚀
+        # 💡 CRITICAL FIX: Re-declare all required variables directly in the step's env block
+        env:
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          
+          # Maintain the critical private key fix
+          GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
+          
+          # Inherit variables defined at the job-level
+          SMTP_SERVER: ${{ env.SMTP_SERVER }}
+          SMTP_PORT: ${{ env.SMTP_PORT }}
+          TEAMS_WEBHOOK_URL: ${{ env.TEAMS_WEBHOOK_URL }}
+
         run: python test2.py
