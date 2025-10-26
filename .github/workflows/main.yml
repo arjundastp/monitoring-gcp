@@ -8,7 +8,6 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
-    environment: envdev2   # <--- This tells GitHub to use the environment and its secrets
 
     steps:
       - name: Checkout repo
