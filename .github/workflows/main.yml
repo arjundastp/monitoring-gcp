@@ -1,16 +1,21 @@
-name: CloudSQL Monitoring Report
+name: CloudSQL Monitoring Report (JSON Config)
 
 on:
-  # Runs daily at 08:00 UTC and allows manual trigger
+  # Runs every day at 8:00 AM UTC
   schedule:
     - cron: '0 8 * * *'
+  # Allows manual triggering from the GitHub Actions tab
   workflow_dispatch:
 
 jobs:
   run_monitor:
     runs-on: ubuntu-latest
     
-    # 💡 IMPORTANT: We remove the job-level 'env' block to eliminate inheritance errors.
+    # Define environment variables available to all steps in this job
+    env:
+      # CRITICAL: Pass the entire JSON secret as a single environment variable 
+      # The Python script will read and parse this single string.
+      MONITOR_CONFIG_JSON: ${{ secrets.MONITOR_CONFIG_JSON }}
 
     steps:
       - name: Checkout repository
@@ -24,27 +29,9 @@ jobs:
       - name: Install dependencies from requirements.txt ✅
         run: |
           python -m pip install --upgrade pip
+          # Ensure you have all necessary packages (requests, numpy, google-auth, etc.)
           pip install -r requirements.txt 
 
       - name: Run CloudSQL Monitor Script 🚀
-        # Define ALL variables directly in the step environment.
-        env:
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          
-          # Google Service Account Configuration
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          
-          # CRITICAL: Keep double quotes for the multiline private key.
-          GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
-          
-          # Optional/Config Variables (no more '||' in YAML for max stability)
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }} # Python will handle the '587' default
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          
+        # The script now reads the config from the single MONITOR_CONFIG_JSON env var
         run: python test2.py
