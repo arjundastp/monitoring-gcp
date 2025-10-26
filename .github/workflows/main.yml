@@ -1,8 +1,10 @@
 name: CloudSQL Monitoring Report (JSON Config)
 
 on:
+  # Runs every day at 8:00 AM UTC
   schedule:
     - cron: '0 8 * * *'
+  # Allows manual triggering from the GitHub Actions tab
   workflow_dispatch:
 
 jobs:
@@ -23,14 +25,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt 
 
-      # 1. Correctly write the multi-line JSON secret to a temporary file
+      # CRITICAL STEP: Writes the multi-line JSON secret to a file named config.json
       - name: Write JSON Config to File
+        # The single quotes here are essential to handle newlines and complex characters in the secret.
         run: echo '${{ secrets.MONITOR_CONFIG_JSON }}' > config.json
         shell: bash
 
       - name: Run CloudSQL Monitor Script 🚀
-        # 2. Pass the path to the file to the Python script
+        # Passes the *path* to the file, not the file content itself.
         env:
-          CONFIG_FILE_PATH: config.json
+          CONFIG_FILE_PATH: config.json 
           
         run: python test2.py

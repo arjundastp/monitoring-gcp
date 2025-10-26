@@ -16,12 +16,14 @@ import os
 
 # Load the configuration from the single JSON environment variable
 try:
-    CONFIG_JSON_STR = os.getenv('MONITOR_CONFIG_JSON')
-    if not CONFIG_JSON_STR:
-        raise ValueError("MONITOR_CONFIG_JSON environment variable is missing.")
+    config_file_path = os.getenv('CONFIG_FILE_PATH') 
+    
+    if not config_file_path:
+        raise ValueError("CONFIG_FILE_PATH environment variable is missing.")
 
-    # Parse the JSON string into a Python dictionary
-    CONFIG = json.loads(CONFIG_JSON_STR)
+    # 2. Read the entire configuration from the file
+    with open(config_file_path, 'r') as f:
+        CONFIG = json.load(f)
 
     # Extract all variables from the loaded CONFIG
     PROJECT_ID = CONFIG['PROJECT_ID']
