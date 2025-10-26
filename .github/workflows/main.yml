@@ -1,46 +1,51 @@
-name: Daily Script Runner
+name: CloudSQL Monitoring Report
 
 on:
+  # Adjust the schedule as needed (e.g., daily at 08:00 UTC)
   schedule:
-    - cron: '0 3 * * *'    # Runs every day at 3 AM UTC
-  workflow_dispatch:        # Allows manual run
+    - cron: '0 8 * * *'
+  # Allows manual runs from the GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
-  run-script:
+  run_monitor:
     runs-on: ubuntu-latest
+    
+    # Define the environment variables, ensuring correct handling for multi-line secrets
+    env:
+      PROJECT_ID: ${{ secrets.PROJECT_ID }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      # Google Service Account Configuration
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      
+      # CRUCIAL FIX: Use double quotes to safely pass the multiline private key 
+      # from the GitHub secret into a single environment variable.
+      GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
+
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x' 
 
       - name: Install dependencies
         run: |
+          # The Python script uses these libraries
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install requests numpy smtplib google-auth google-oauthlib 
 
-      - name: Run script
+      - name: Run CloudSQL Monitor Script
+        # SCRIPT NAME FIXED HERE 👇
         run: python test2.py
-        env:
-          # --- Required Variables for your script (must be in GitHub Secrets) ---
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          
-          # 💡 CRITICAL: Quoting GOOGLE_PRIVATE_KEY for safe multi-line handling
-          GOOGLE_PRIVATE_KEY: "${{ secrets.GOOGLE_PRIVATE_KEY }}"
-          
-          GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-
-          # --- Other Config Variables (with SMTP_PORT fix) ---
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          # 💡 FIX: Use default '587' if the secret is empty/missing to avoid ValueError
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }} 
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
