@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+#load_dotenv()
 
 # ---------------- CONFIG FROM ENV ----------------
 PROJECT_ID = os.getenv('PROJECT_ID')
@@ -515,4 +515,5 @@ if __name__ == "__main__":
         send_email_report(subject, body)
         send_teams_message(results, peak_cpu_instance, peak_cpu_value)
     else:
+
         print("WARNING: No metric data found for any instances.")
