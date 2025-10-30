@@ -521,44 +521,54 @@ def main():
         return False
 
 # Vercel Serverless Function Handler
-def handler(request):
-    """
-    Vercel serverless function handler for scheduled execution.
-    This function will be called by Vercel's cron scheduler.
-    """
-    try:
-        print("🚀 Starting Vercel cron job execution...")
-        
-        # Load environment variables (Vercel automatically provides them)
-        load_dotenv()
-        
-        success = main()
-        
-        if success:
-            return {
-                'statusCode': 200,
-                'body': json.dumps({
-                    'message': 'CloudSQL monitoring report completed successfully',
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self._handle_request()
+    
+    def do_POST(self):
+        self._handle_request()
+    
+    def _handle_request(self):
+        try:
+            print("🚀 Starting Vercel cron job execution...")
+            
+            success = main()
+            
+            if success:
+                response_data = {
+                    'message': 'CloudSQL monitoring report completed successfully', 
                     'timestamp': datetime.utcnow().isoformat() + 'Z'
-                })
-            }
-        else:
-            return {
-                'statusCode': 500,
-                'body': json.dumps({
+                }
+                status_code = 200
+            else:
+                response_data = {
                     'error': 'CloudSQL monitoring failed - no data found',
                     'timestamp': datetime.utcnow().isoformat() + 'Z'
-                })
-            }
-    except Exception as e:
-        print(f"ERROR in Vercel handler: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
+                }
+                status_code = 500
+            
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+            
+        except Exception as e:
+            print(f"ERROR in Vercel handler: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            error_response = {
                 'error': str(e),
                 'timestamp': datetime.utcnow().isoformat() + 'Z'
-            })
-        }
+            }
+            
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json') 
+            self.end_headers()
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
 
 # Local execution (when running python test2.py directly)
 if __name__ == "__main__":
