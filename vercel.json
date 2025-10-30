@@ -1,7 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/test2.py": {}
+    "api/test2.py": {
+      "runtime": "python3.11"
+    }
   },
   "crons": [
     {
