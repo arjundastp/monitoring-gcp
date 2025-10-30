@@ -1,13 +1,12 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/test2.py": {
-      "runtime": "python3.11"
-    }
+    "api/test2.py": {}
   },
   "crons": [
     {
       "path": "/api/test2",
-      "schedule": "0 3 * * *"
+      "schedule": "30 7 * * *"
     }
   ]
 }
