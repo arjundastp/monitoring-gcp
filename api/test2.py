@@ -26,6 +26,7 @@ GOOGLE_SERVICE_ACCOUNT_EMAIL = os.getenv('GOOGLE_SERVICE_ACCOUNT_EMAIL')
 GOOGLE_PRIVATE_KEY = os.getenv('GOOGLE_PRIVATE_KEY')
 GOOGLE_PRIVATE_KEY_ID = os.getenv('GOOGLE_PRIVATE_KEY_ID')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+
 SCOPES = ['https://www.googleapis.com/auth/monitoring.read']
 
 
@@ -44,7 +45,7 @@ def get_access_token():
         creds.refresh(Request())
         return creds.token
     except Exception as e:
-        print("Auth error", e)
+        print("Auth error:", e)
         return None
 
 
@@ -62,7 +63,7 @@ def send_email_report(subject, body):
         server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
         server.quit()
     except Exception as e:
-        print("Email error", e)
+        print("Email error:", e)
 
 
 def send_teams_message(text):
@@ -70,8 +71,8 @@ def send_teams_message(text):
         return
     try:
         requests.post(TEAMS_WEBHOOK_URL, json={"text": text})
-    except:
-        pass
+    except Exception as e:
+        print("Teams webhook error:", e)
 
 
 def get_instances(token):
@@ -82,10 +83,12 @@ def get_instances(token):
         "interval.endTime": datetime.utcnow().isoformat() + "Z"
     }
     r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params=params)
+
     inst = []
     for ts in r.json().get("timeSeries", []):
         iid = ts["resource"]["labels"].get("database_id", "")
-        if ":" in iid: inst.append(iid.split(":")[-1])
+        if ":" in iid:
+            inst.append(iid.split(":")[-1])
     return inst
 
 
@@ -97,11 +100,14 @@ def get_cpu(token, inst):
         "interval.endTime": datetime.utcnow().isoformat() + "Z"
     }
     r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params=params)
+    
     vals = []
     for ts in r.json().get("timeSeries", []):
         for p in ts.get("points", []):
             v = p.get("value", {}).get("doubleValue")
-            if v is not None: vals.append(v)
+            if v is not None:
+                vals.append(v)
+
     return np.percentile(vals, 99) * 100 if vals else 25.0
 
 
@@ -122,19 +128,22 @@ def run_job():
     report = "\n".join(logs)
     send_email_report("Cloud SQL CPU Report", report)
     send_teams_message(report)
+    print(report)
+
     return True
 
 
-# ✅ Vercel handler
-def handler(request, context):
+# ✅ Vercel serverless handler
+def handler(event, context):
     ok = run_job()
     return {
         "statusCode": 200,
-        "body": json.dumps({"success": ok, "time": datetime.utcnow().isoformat()})
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({"success": ok, "time": datetime.utcnow().isoformat()}),
     }
 
 
-# ✅ local run
+# ✅ Local run
 if __name__ == "__main__":
     print("Running locally...")
     run_job()
