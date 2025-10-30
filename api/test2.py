@@ -9,15 +9,11 @@ from google.oauth2 import service_account
 import json
 import os
 
-# ✅ Vercel Python imports
-from vercel import VercelRequest, VercelResponse
-
-# Load .env only when local
+# Load .env on local only
 if os.path.exists(".env"):
     from dotenv import load_dotenv
     load_dotenv()
 
-# ----------------- ENV CONFIG -----------------
 PROJECT_ID = os.getenv('PROJECT_ID')
 EMAIL_TO = os.getenv('EMAIL_TO')
 EMAIL_FROM = os.getenv('EMAIL_FROM')
@@ -32,31 +28,26 @@ GOOGLE_PRIVATE_KEY_ID = os.getenv('GOOGLE_PRIVATE_KEY_ID')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 SCOPES = ['https://www.googleapis.com/auth/monitoring.read']
 
-# ----------------- AUTH -----------------
+
 def get_access_token():
     try:
-        service_account_info = {
+        sa = {
             "type": "service_account",
             "project_id": PROJECT_ID,
             "private_key_id": GOOGLE_PRIVATE_KEY_ID,
             "private_key": GOOGLE_PRIVATE_KEY.replace("\\n", "\n"),
             "client_email": GOOGLE_SERVICE_ACCOUNT_EMAIL,
             "client_id": GOOGLE_CLIENT_ID,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{GOOGLE_SERVICE_ACCOUNT_EMAIL.replace('@', '%40')}"
+            "token_uri": "https://oauth2.googleapis.com/token"
         }
-        credentials = service_account.Credentials.from_service_account_info(
-            service_account_info, scopes=SCOPES
-        )
-        credentials.refresh(Request())
-        return credentials.token
+        creds = service_account.Credentials.from_service_account_info(sa, scopes=SCOPES)
+        creds.refresh(Request())
+        return creds.token
     except Exception as e:
-        print(f"Auth failed: {e}")
+        print("Auth error", e)
         return None
 
-# ----------------- EMAIL -----------------
+
 def send_email_report(subject, body):
     try:
         msg = MIMEMultipart()
@@ -70,35 +61,20 @@ def send_email_report(subject, body):
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
         server.quit()
-        print("Email sent")
     except Exception as e:
-        print(f"Email error: {e}")
+        print("Email error", e)
 
-# ----------------- TEAMS -----------------
-def send_teams_message(results, peak_inst, peak_val):
+
+def send_teams_message(text):
     if not TEAMS_WEBHOOK_URL:
-        print("Teams webhook missing")
         return
-    
     try:
-        table = "\n".join(
-            f"• **{r['instance']}** – CPU: {r['cpu_utilization']:.1f}% | Lat: {r['query_latency_p99']:.1f}µs | Conn: {r['connections_peak']}"
-            for r in results
-        )
-
-        text = f"""
-**Cloud SQL Report**
-Peak: `{peak_inst}` – `{peak_val:.1f}%`
-
-{table}
-"""
         requests.post(TEAMS_WEBHOOK_URL, json={"text": text})
-        print("Teams sent")
-    except Exception as e:
-        print(f"Teams error: {e}")
+    except:
+        pass
 
-# ----------------- METRICS -----------------
-def get_all_instances(token):
+
+def get_instances(token):
     url = f"https://monitoring.googleapis.com/v3/projects/{PROJECT_ID}/timeSeries"
     params = {
         "filter": 'metric.type="cloudsql.googleapis.com/database/cpu/utilization" AND resource.type="cloudsql_database"',
@@ -107,13 +83,13 @@ def get_all_instances(token):
     }
     r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params=params)
     inst = []
-    if "timeSeries" in r.json():
-        for ts in r.json()["timeSeries"]:
-            iid = ts["resource"]["labels"].get("database_id", "")
-            if ":" in iid: inst.append(iid.split(":")[-1])
+    for ts in r.json().get("timeSeries", []):
+        iid = ts["resource"]["labels"].get("database_id", "")
+        if ":" in iid: inst.append(iid.split(":")[-1])
     return inst
 
-def fetch_cpu_metrics(token, inst):
+
+def get_cpu(token, inst):
     url = f"https://monitoring.googleapis.com/v3/projects/{PROJECT_ID}/timeSeries"
     params = {
         "filter": f'metric.type="cloudsql.googleapis.com/database/cpu/utilization" AND resource.labels.database_id="{PROJECT_ID}:{inst}"',
@@ -124,55 +100,41 @@ def fetch_cpu_metrics(token, inst):
     vals = []
     for ts in r.json().get("timeSeries", []):
         for p in ts.get("points", []):
-            if "doubleValue" in p.get("value", {}):
-                vals.append(p["value"]["doubleValue"])
-    return vals
+            v = p.get("value", {}).get("doubleValue")
+            if v is not None: vals.append(v)
+    return np.percentile(vals, 99) * 100 if vals else 25.0
 
-# ----------------- MAIN JOB -----------------
-def main_monitoring():
-    required = [
-        'PROJECT_ID','EMAIL_TO','EMAIL_FROM','EMAIL_PASSWORD',
-        'GOOGLE_SERVICE_ACCOUNT_EMAIL','GOOGLE_PRIVATE_KEY','GOOGLE_PRIVATE_KEY_ID','GOOGLE_CLIENT_ID'
-    ]
-    if any(not os.getenv(v) for v in required):
-        print("Missing envs")
+
+def run_job():
+    token = get_access_token()
+    if not token:
         return False
 
-    token = get_access_token()
-    if not token: return False
+    insts = get_instances(token)
+    if not insts:
+        return False
 
-    insts = get_all_instances(token)
-    if not insts: return False
-
-    results = []
-    peak_val, peak_inst = 0, None
-
+    logs = []
     for inst in insts:
-        vals = fetch_cpu_metrics(token, inst)
-        cpu = np.percentile(vals, 99) * 100 if vals else 25.0
-        lat = 20 + cpu * 0.5
-        conn = max(1, int(cpu * 2))
+        cpu = get_cpu(token, inst)
+        logs.append(f"{inst}: {cpu:.1f}% CPU")
 
-        if cpu > peak_val:
-            peak_val, peak_inst = cpu, inst
-
-        results.append({"instance":inst,"cpu_utilization":cpu,"query_latency_p99":lat,"connections_peak":conn})
-
-    body = "\n".join([f"{r['instance']}: {r['cpu_utilization']:.1f}% CPU" for r in results])
-    send_email_report("CloudSQL Report", body)
-    send_teams_message(results, peak_inst, peak_val)
+    report = "\n".join(logs)
+    send_email_report("Cloud SQL CPU Report", report)
+    send_teams_message(report)
     return True
 
-# ----------------- ✅ Vercel entrypoint -----------------
-async def app(request: VercelRequest) -> VercelResponse:
-    ok = main_monitoring()
-    return VercelResponse(
-        status=200 if ok else 500,
-        body=json.dumps({"ok": ok, "time": datetime.utcnow().isoformat()+"Z"}),
-        headers={"Content-Type": "application/json"}
-    )
 
-# ----------------- Local Run -----------------
+# ✅ Vercel handler
+def handler(request, context):
+    ok = run_job()
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"success": ok, "time": datetime.utcnow().isoformat()})
+    }
+
+
+# ✅ local run
 if __name__ == "__main__":
     print("Running locally...")
-    main_monitoring()
+    run_job()
